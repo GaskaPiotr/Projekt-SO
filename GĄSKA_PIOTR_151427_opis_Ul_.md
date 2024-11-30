@@ -48,3 +48,6 @@ Symulacja obejmuje kluczowe aspekty, takie jak ograniczone miejsce w ulu, instyn
 Projekt symulacji ula ma na celu ukazanie kluczowych mechanizmów synchronizacji oraz współbieżności w systemach wielowątkowych. 
 Implementacja zapewnia realistyczne odwzorowanie cyklu życia roju pszczół, uwzględniając ograniczenia przestrzeni, czas przebywania pszczół w ulu oraz interwencje pszczelarza. 
 Dzięki odpowiednim testom symulacja jest wszechstronnie przetestowana pod kątem poprawności i wydajności.
+
+### Link
+https://github.com/GaskaPiotr/Projekt-SO
