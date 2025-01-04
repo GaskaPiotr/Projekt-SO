@@ -5,25 +5,12 @@
 #include <errno.h>
 #include <limits.h>
 
+#include "my_header.h"
+
 int TI;
 int XI;
 int how_many_times_in_hive = 1;
 
-void check_if_positive_int(char *arg, int *a)
-{
-	char *p;
-	errno = 0;
-        long conv = strtol(arg, &p, 10);
-
-        if (errno != 0 || *p != '\0' || conv > INT_MAX || conv < 1)
-        {
-                printf("Parameter isn't a postive int\n");
-                exit(EXIT_FAILURE);
-        }
-        else
-                *a = conv;
-
-}
 
 int main(int argc, char *argv[])
 {
@@ -45,12 +32,12 @@ int main(int argc, char *argv[])
 		{
 			sleep(0.5);
 		}
-		printf("Wychodze z ula\n");
-		printf("Wracam do ula\n");
+		printf("I'm leaving the hive\n");
+		printf("I'm coming back to the hive\n");
 		seconds = time(NULL);
 		how_many_times_in_hive++;
 	}
-	printf("Pszczola umarla\n");
+	printf("Worker died\n");
 	return 0;
 }
 
