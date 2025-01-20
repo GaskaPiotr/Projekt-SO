@@ -5,13 +5,19 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 #include "my_header.h"
 
+
+
+
 int TK;
-int N = 2;
-int P = 10;
+int N = 100;
+int P = 49;
 int number_of_bees_in_hive = 2;
+
 
 void clean_workers(int sig)
 {
@@ -40,6 +46,9 @@ void spawn_worker(const char *worker_program, const char *worker_arg1, const cha
 
 int main(int argc, char *argv[])
 {
+	key_t key = ftok("hive", 65);
+	int shmid = shmget(key, sizeof(int), 0666 | IPC_CREAT);
+	int *shared_space = (int *)shmat(shmid, NULL, 0);
 	const char *worker_program = "./robotnica";
 
 	signal(SIGCHLD, clean_workers);
@@ -55,12 +64,14 @@ int main(int argc, char *argv[])
 	printf("I am Queen\n");
 
 	time_t seconds = time(NULL);
-	int counter = 100;
 	printf("Start producing workers\n");
 
 
-	while (counter > 0)
+	while (1)
 	{
+		if (*shared_space != 0)
+			N = *shared_space;
+		printf("Queen: space in beehive = %d\n", N);
 		if (P > number_of_bees_in_hive)
 		{
 			while (time(NULL) <= seconds + TK)
@@ -68,15 +79,18 @@ int main(int argc, char *argv[])
 				sleep(0.5);
 			}
 			printf("laying eggs\n");
-			spawn_worker(worker_program, "10", "2");
+			//spawn_worker(worker_program, "10", "2");
+
+
 			//execlp("./robotnica", "./robotnica", "10", "2", NULL);
 			//perror("execlp error");
 			//if (system("./robotnica 10 2") != 0)
 			//	printf("ERROR executing system()\n");
 			seconds = time(NULL);
-			counter--;
 			number_of_bees_in_hive++;
 		}
 	}
+	shmdt(shared_space);
 	return 0;
 }
+
