@@ -32,12 +32,12 @@
 #define SEM_2 5
 
 // File for creating private SEM
-char temp_file[30];
+char worker_tmp_file[30];
 
 // Time to overheat or chill
 int TI;
 
-// Number of visits of Hive to die
+// Number of visits the Hive to die
 int XI;
 int how_many_times_in_hive = 0;
 
@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
                 }
 	}
 
+	// TODO worker exit handler
 	printf("Worker died\n");
 	return 0;
 }
@@ -169,10 +170,10 @@ void join_queue(const char *fifo)
 key_t generate_key(pid_t pid)
 {
         // Create a unique filename based on PID
-        sprintf(temp_file, "/tmp/%d", pid);
+        sprintf(worker_tmp_file, "/tmp/%d", pid);
 
-        // Create the temporary file
-        FILE *fp = fopen(temp_file, "w");
+        // Create or open the temporary file
+        FILE *fp = fopen(worker_tmp_file, "w");
         if (fp == NULL)
         {
                 perror("Error: Failed to create temporary file\n");
@@ -181,7 +182,7 @@ key_t generate_key(pid_t pid)
         fclose(fp);
 
         // Using ftok to generate a key
-        key_t key = ftok(temp_file, PROJ_ID);
+        key_t key = ftok(worker_tmp_file, PROJ_ID);
         if (key == -1)
         {
                 perror("Error: Ftok failed\n");
