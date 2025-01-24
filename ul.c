@@ -14,8 +14,12 @@
 // Project ID used in keys
 #define PROJ_ID 80
 
+
+// TODO setup that beehive is declaring N at the start
 // File for SMH with N - Max num of bees
 #define NUM_OF_BEES_FILE "/tmp/bees"
+// TODO kolejny SHM do P
+#define NUM_OF_BEES_IN_HIVE_FILE "/tmp/bees_in_hive"
 
 // A = HIVE
 // B = OUTSIDE
@@ -35,7 +39,8 @@
 #define SEM_2 5
 
 int sem_id;
-int shm_id;
+int shm_id_n;
+int shm_id_num_of_bees;
 
 void semaphore_operation(int semID, int sem_num, int op);
 key_t generate_key(pid_t pid);
@@ -81,28 +86,53 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Hive: Create SHM\n");
+	printf("Hive: Create SHM for N\n");
 
 	// Creating or open SHM FILE
 	create_or_open_file(NUM_OF_BEES_FILE);
 
 	// Creating key for SHM ID
-	key_t shm_key = create_key(NUM_OF_BEES_FILE);
+	key_t shm_key_n = create_key(NUM_OF_BEES_FILE);
 	// Creating SHM ID
-	shm_id = shmget(shm_key, sizeof(int), 0666 | IPC_CREAT);
+	shm_id_n = shmget(shm_key_n, sizeof(int), 0666 | IPC_CREAT);
 
-	if (shm_id == -1)
+	if (shm_id_n == -1)
 	{
 		perror("Error: Shmget failed");
 		exit(EXIT_FAILURE);
 	}
 	// Shared N
-	int *shared_int = (int *)shmat(shm_id, NULL, 0);
-	if (shared_int == (int *)-1)
+	int *shared_n = (int *)shmat(shm_id_n, NULL, 0);
+	if (shared_n == (int *)-1)
 	{
 		perror("Error: Shmat failed");
 		exit(EXIT_FAILURE);
 	}
+
+	printf("Hive: Create SHM for num of bees in Hive\n");
+	// TODO
+        // Creating or open SHM FILE
+        create_or_open_file(NUM_OF_BEES_IN_HIVE_FILE);
+
+        // Creating key for SHM ID
+        key_t shm_key_num_of_bees = create_key(NUM_OF_BEES_IN_HIVE_FILE);
+        // Creating SHM ID
+        shm_id_num_of_bees = shmget(shm_key_num_of_bees, sizeof(int), 0666 | IPC_CREAT);
+
+        if (shm_id_num_of_bees == -1)
+        {
+                perror("Error: Shmget failed");
+                exit(EXIT_FAILURE);
+        }
+
+        // Shared number of bees in hive
+        int *shared_num_of_bees_in_hive = (int *)shmat(shm_id_num_of_bees, NULL, 0);
+        if (shared_num_of_bees_in_hive == (int *)-1)
+        {
+                perror("Error: Shmat failed");
+                exit(EXIT_FAILURE);
+        }
+
 
 	// Opening FIFO
         int fifo_a1 = open(FIFO_A1, O_RDONLY|O_NONBLOCK);
@@ -466,17 +496,31 @@ void exit_handler(int sig)
                 exit(EXIT_FAILURE);
         }
 
-        printf("Hive: Removing SHM\n");
+        printf("Hive: Removing SHM for N\n");
         if(unlink(NUM_OF_BEES_FILE) == -1)
  	{
                 perror("Error: Unlinking num of bees FILE failed");
                 exit(EXIT_FAILURE);
         }
-	if (shmctl(shm_id, IPC_RMID, 0))
+	if (shmctl(shm_id_n, IPC_RMID, 0))
 	{
 		perror("Error: Removing SHM failed");
 		exit(EXIT_FAILURE);
 	}
+
+        printf("Hive: Removing SHM for num of bees\n");
+        if(unlink(NUM_OF_BEES_IN_HIVE_FILE) == -1)
+        {
+                perror("Error: Unlinking num of bees in hive FILE failed");
+                exit(EXIT_FAILURE);
+        }
+        if (shmctl(shm_id_num_of_bees, IPC_RMID, 0))
+        {
+                perror("Error: Removing SHM failed");
+                exit(EXIT_FAILURE);
+        }
+
+
 
         exit(0);
 }
