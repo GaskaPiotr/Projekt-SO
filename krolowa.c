@@ -16,16 +16,18 @@
 
 // TODO UL deciding about N and P
 #define NUM_OF_BEES_FILE "/tmp/bees"
+
+// SHM file to share number of bees in hive
+#define NUM_OF_BEES_IN_HIVE_FILE "/tmp/bees_in_hive"
+
 // Time to lay eggs
 int TK;
-
 // Maximum number of workers
-int N = 100;
-
+int N;
 // Maximum number of workers in Hive
 int P;
-int number_of_bees = 0;
-int number_of_bees_in_hive = 0;
+// Number of all workers
+int num_of_bees = 0;
 
 
 void clean_workers(int sig);
@@ -35,9 +37,14 @@ key_t generate_key(const char *file_name);
 void exit_handler(int sig)
 {
 	printf("\nQueen: Received SIGINT\n");
-	printf("Queen: Cleaning\n");
-	// TODO
-	//printf("Queen: Removing 
+	printf("Queen: Waiting for all workers to die naturally\n");
+	printf("Queen: num_of_bees: %d\n", num_of_bees);
+	while(num_of_bees > 0)
+	{
+		printf("Queen: Waiting, num of workers: %d\n", num_of_bees);
+		sleep(1);
+	}
+	printf("Queen: ALL WORKERS DIED\n");
 	exit(0);
 }
 
@@ -51,13 +58,13 @@ int main(int argc, char *argv[])
         }
 
 	// Setting up exit handler
-	if (signal(SIGINT, exit_handler) == SIG_ERR)
+	if (signal(SIGUSR1, exit_handler) == SIG_ERR)
 	{
-		perror("Error: Unable to catch SIGINT");
+		perror("Error: Unable to catch SIGUSR1");
 		exit(EXIT_FAILURE);
 	}
 
-	printf("\n\nQueen: EXIT WITH SIGINT\n\n");
+	printf("\n\nQueen: EXIT WITH: kill -USR1 %d\n\n", getpid());
 
 	// Setting up signal to clean zombie Workers
 	if (signal(SIGCHLD, clean_workers) == SIG_ERR)
@@ -67,58 +74,79 @@ int main(int argc, char *argv[])
 	}
 	const char *worker_program = "./robotnica";
 
-	// Creating key for SHM
-	key_t key = generate_key(NUM_OF_BEES_FILE);
-	if (key == -1)
+	// Creating key for SHM N
+	key_t key_n = generate_key(NUM_OF_BEES_FILE);
+	if (key_n == -1)
 	{
 		perror("Error: Ftok failed");
 		exit(EXIT_FAILURE);
 	}
-	// Creating SHM with size of one int
-	int shm_id = shmget(key, sizeof(int), 0666 | IPC_CREAT);
-	if (shm_id == -1)
+	// Creating SHM N with size of one int
+	int shm_id_n = shmget(key_n, sizeof(int), 0666 | IPC_CREAT);
+	if (shm_id_n == -1)
 	{
 		perror("Error: Shmget failed");
 		exit(EXIT_FAILURE);
 	}
-
 	// Shared N
-	int *shared_int = (int *)shmat(shm_id, NULL, 0);
-	if (shared_int == (int *)-1)
+	int *shared_n = (int *)shmat(shm_id_n, NULL, 0);
+	if (shared_n == (int *)-1)
 	{
 		perror("Error: Shmat failed");
 		exit(EXIT_FAILURE);
 	}
 
+        // Creating key for SHM num of bees in hive
+        key_t key_num_of_bees = generate_key(NUM_OF_BEES_IN_HIVE_FILE);
+        if (key_num_of_bees == -1)
+        {
+                perror("Error: Ftok failed");
+                exit(EXIT_FAILURE);
+        }
+        // Getting SHM num of bees with size of one int
+        int shm_id_num_of_bees = shmget(key_num_of_bees, sizeof(int), 0666 | IPC_CREAT);
+        if (shm_id_num_of_bees == -1)
+        {
+                perror("Error: Shmget failed");
+                exit(EXIT_FAILURE);
+        }
+        // Shared num of bees
+        int *shared_num_of_bees = (int *)shmat(shm_id_num_of_bees, NULL, 0);
+        if (shared_num_of_bees == (int *)-1)
+        {
+                perror("Error: Shmat failed");
+                exit(EXIT_FAILURE);
+        }
+
+
 	check_if_positive_int(argv[1], &TK);
 
 	printf("Queen: Started producing workers\\nn");
 
+	sleep(TK);
 	while (1)
 	{
 		// Getting N from SHM
-		if (*shared_int != 0)
-			N = *shared_int;
-		printf("Queen: space in beehive = %d\n", N);
+		N = *shared_n;
+		printf("Queen: space in Hive = %d\n", N);
 		// Calculating space in Hive
 		calculate_P(N, &P);
-		if (P > number_of_bees_in_hive && N > number_of_bees)
+		printf("P: %d, num_of_bees_in_hive: %d\n", P, *shared_num_of_bees);
+		printf("N: %d, num_of_bees: %d\n", N, num_of_bees);
+		if (P > *shared_num_of_bees && N > num_of_bees)
 		{
-			// Waits Tk time to lay eggs
-			sleep(TK);
 			printf("laying egg\n");
-			lay_egg(worker_program, "10", "2");
-
-
-			//execlp("./robotnica", "./robotnica", "10", "2", NULL);
-			//perror("execlp error");
-			//if (system("./robotnica 10 2") != 0)
-			//	printf("ERROR executing system()\n");
-			number_of_bees_in_hive++;
-			number_of_bees++;
+        	        // worker_arg1: Ti - Time to oveheat or chill
+	                // worker_arg2: Xi - Number of visits the Hive to die
+			lay_egg(worker_program, "5", "2");
+			// Increase number of bees in hive
+			*shared_num_of_bees++;
+			// Increase number of bees
+			num_of_bees++;
 		}
+		// Waits Tk time to lay eggs
+		sleep(TK);
 	}
-	shmdt(shared_int);
 	return 0;
 }
 
@@ -126,7 +154,7 @@ void clean_workers(int sig)
 {
         while(waitpid(-1, NULL, WNOHANG) > 0)
 	{
-		number_of_bees--;
+		num_of_bees--;
 	}
 }
 
