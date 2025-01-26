@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <signal.h>
+#include <sys/prctl.h>
 
 #include "my_header.h"
 
@@ -41,12 +43,14 @@ int TI;
 int XI;
 int how_many_times_in_hive = 0;
 
+// Private SEM ID
+int priv_sem_id;
 
 void semaphore_operation(int sem_id, int sem_num, int op);
 void join_queue(const char *fifo);
 key_t generate_key(pid_t pid);
 void queue_function(int semID, int priv_semID, int count, int tunnel, char *side);
-
+void exit_handler();
 
 int main(int argc, char *argv[])
 {
@@ -65,16 +69,16 @@ int main(int argc, char *argv[])
         int sem_id = semget(key, 6, IPC_CREAT | 0666);
         if (sem_id == -1)
         {
-                perror("Error: Semget failed\n");
+                perror("Error: Semget failed");
                 exit(EXIT_FAILURE);
         }
 
         // Creating private SEM
         key_t key_sem = generate_key(getpid());
-        int priv_sem_id = semget(key_sem, 1, IPC_CREAT | 0666);
+        priv_sem_id = semget(key_sem, 1, IPC_CREAT | 0666);
         if (priv_sem_id == -1)
         {
-                perror("Error: Semget failed\n");
+                perror("Error: Semget failed");
                 exit(EXIT_FAILURE);
         }
         // Setting up private SEM
@@ -129,7 +133,7 @@ int main(int argc, char *argv[])
 	}
 
 	// TODO worker exit handler
-	printf("Worker died\n");
+	exit_handler();
 	return 0;
 }
 
@@ -141,7 +145,7 @@ void semaphore_operation(int sem_id, int sem_num, int op)
         sb.sem_flg = 0;
         if (semop(sem_id, &sb, 1) == -1)
         {
-                perror("Error: Semop failed\n");
+                perror("Error: Semop failed");
                 exit(EXIT_FAILURE);
         }
 }
@@ -152,7 +156,7 @@ void join_queue(const char *fifo)
         int fifo_fd = open(fifo, O_WRONLY);
         if (fifo_fd == -1)
         {
-                perror("Error: Failed to open FIFO\n");
+                perror("Error: Failed to open FIFO");
                 exit(EXIT_FAILURE);
         }
 
@@ -176,7 +180,7 @@ key_t generate_key(pid_t pid)
         FILE *fp = fopen(worker_tmp_file, "w");
         if (fp == NULL)
         {
-                perror("Error: Failed to create temporary file\n");
+                perror("Error: Failed to create temporary file");
                 exit(EXIT_FAILURE);
         }
         fclose(fp);
@@ -185,7 +189,7 @@ key_t generate_key(pid_t pid)
         key_t key = ftok(worker_tmp_file, PROJ_ID);
         if (key == -1)
         {
-                perror("Error: Ftok failed\n");
+                perror("Error: Ftok failed");
                 exit(EXIT_FAILURE);
         }
         return key;
@@ -239,5 +243,23 @@ void queue_function(int semID, int priv_semID, int count, int tunnel, char *side
 }
 
 
+void exit_handler(int sig)
+{
+	printf("Worker %d: Died, cleaning\n", getpid());
 
+	// Removing priv SEM file
+        if (unlink(worker_tmp_file) == -1)
+        {
+                perror("Error: Unlinking SEM FILE failed");
+                exit(EXIT_FAILURE);
+        }
 
+	// Removing priv SEM
+        if (semctl(priv_sem_id, 0, IPC_RMID, 0) == -1)
+        {
+                perror("Error: Removing SEM failed");
+                exit(EXIT_FAILURE);
+        }
+
+	exit(0);
+}
