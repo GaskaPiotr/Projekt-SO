@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <time.h>
 #include <signal.h>
+#include <limits.h>
 
 // Project ID used in keys
 #define PROJ_ID 80
@@ -38,6 +39,9 @@
 #define SEM_1 4
 #define SEM_2 5
 
+int N;
+int P;
+
 int sem_id;
 int shm_id_n;
 int shm_id_num_of_bees;
@@ -49,17 +53,25 @@ void create_fifo(const char *file_name);
 key_t create_key(const char *file_name);
 
 void queue_function_hive(int semID, pid_t workerPID, char side, int tunnel);
+void check_if_positive_int(char *arg, int *a);
+void calculate_P(int n, int *p);
 void exit_handler(int sig);
 
-int main()
+int main(int argc, char *argv[])
 {
+        if (argc != 2)
+        {
+                printf("%s N(max_num_of_bees)\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+
 	// Setting up exit handler
 	if (signal(SIGINT, exit_handler) == SIG_ERR)
 	{
 		perror("Error: Unable to catch SIGINT");
 		exit(EXIT_FAILURE);
 	}
-
+	printf("\n\nHive: EXIT WITH SIGINT\n\n");
 	printf("Hive: Starting process\n");
 	printf("Hive: Create FIFOS\n");
 	// Create FIFO
@@ -109,6 +121,11 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
+	check_if_positive_int(argv[1], &N);
+	*shared_n = N;
+	printf("Hive: Setting first SHM as N: %d\n", *shared_n);
+	calculate_P(N, &P);
+
 	printf("Hive: Create SHM for num of bees in Hive\n");
 	// TODO
         // Creating or open SHM FILE
@@ -132,7 +149,8 @@ int main()
                 perror("Error: Shmat failed");
                 exit(EXIT_FAILURE);
         }
-
+	*shared_num_of_bees_in_hive = 0;
+	printf("Hive: Setting second SHM as num of bees: %d\n", *shared_num_of_bees_in_hive);
 
 	// Opening FIFO
         int fifo_a1 = open(FIFO_A1, O_RDONLY|O_NONBLOCK);
@@ -253,6 +271,12 @@ int main()
 		printf("Hive: Checking count of workers in queues A2: %d;B2: %d\n", queue_a2_count, queue_b2_count);
 		printf("Hive: State of FIRST QUEUE: %d; SECOND QUEUE: %d\n\n\n", queue_1, queue_2);
 
+
+		// Getting N from shared memory if changed
+		N = *shared_n;
+		calculate_P(N, &P);
+
+		printf("Hive: \tN: %d\tP: %d\n", N, P);
 		pid_t worker_pid;
 		ssize_t number_of_bytes;
 		// Choosing queue
@@ -274,7 +298,10 @@ int main()
 				exit(EXIT_FAILURE);
 			}
         	}
-		else if (queue_b1_count > 0 && queue_a1_count == 0 && queue_1 == 0)
+		else if (queue_b1_count > 0 &&
+			queue_a1_count == 0 &&
+			queue_1 == 0 &&
+			*shared_num_of_bees_in_hive < P)
 		{
 			// Reading worker PID
                         number_of_bytes = read(fifo_b1, &worker_pid, sizeof(worker_pid));
@@ -312,7 +339,10 @@ int main()
                                 exit(EXIT_FAILURE);
                         }
                 }
-                else if (queue_b2_count > 0 && queue_a2_count == 0 && queue_2 == 0)
+                else if (queue_b2_count > 0 &&
+			queue_a2_count == 0 &&
+			queue_2 == 0 &&
+        		*shared_num_of_bees_in_hive < P)
                 {
                         // Reading worker PID
                         number_of_bytes = read(fifo_b2, &worker_pid, sizeof(worker_pid));
@@ -332,7 +362,7 @@ int main()
 
                 }
 
-		// Hive waits for not immediately queues
+		// Hive waits for not instant queues
         	sleep(3);
 	}
 
@@ -375,6 +405,7 @@ key_t generate_key(pid_t pid) {
         	perror("Error: Ftok failed");
         	exit(EXIT_FAILURE);
     	}
+	
     	return key;
 }
 
@@ -455,6 +486,30 @@ void queue_function_hive(int semID, pid_t workerPID, char side, int tunnel)
 		// Blocking SEM
 		semaphore_operation(semID, SEM_2, 1);
 	}
+}
+
+void check_if_positive_int(char *arg, int *a)
+{
+        char *p;
+        errno = 0;
+        long conv = strtol(arg, &p, 10);
+
+        if (errno != 0 || *p != '\0' || conv > INT_MAX || conv < 1)
+        {
+                printf("Parameter isn't a postive int\n");
+                exit(EXIT_FAILURE);
+        }
+        else
+                *a = conv;
+}
+
+void calculate_P(int n, int *p)
+{
+        // if N is odd p < n/2
+        *p = n/2;
+        // if N is even p = n/2
+        if (n % 2 == 0)
+                *p -= 1;
 }
 
 
