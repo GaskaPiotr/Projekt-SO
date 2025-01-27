@@ -87,9 +87,6 @@ int main(int argc, char *argv[])
         // Worker starting in Hive
         char side = 'A';
 
-        // TODO: early stage of worker
-
-
 	// While before dying
 	while (XI > how_many_times_in_hive)
 	{
