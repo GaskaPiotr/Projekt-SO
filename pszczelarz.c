@@ -24,7 +24,7 @@ void sig_handler(int sig);
 void exit_handler(int sig)
 {
 	printf("\nBeekeper: Received SIGINT\n");
-	printf("Beekeper: Cleaning\n");
+	printf("Beekeper: Exiting\n");
 	exit(0);
 }
 int main()

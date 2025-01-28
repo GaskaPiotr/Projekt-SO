@@ -16,10 +16,9 @@
 #define PROJ_ID 80
 
 
-// TODO setup that beehive is declaring N at the start
 // File for SMH with N - Max num of bees
 #define NUM_OF_BEES_FILE "/tmp/bees"
-// TODO kolejny SHM do P
+// File for SHM number of workers in hive
 #define NUM_OF_BEES_IN_HIVE_FILE "/tmp/bees_in_hive"
 
 // A = HIVE
@@ -64,6 +63,7 @@ int main(int argc, char *argv[])
                 printf("%s N(max_num_of_bees)\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
+	check_if_positive_int(argv[1], &N);
 
 	// Setting up exit handler
 	if (signal(SIGINT, exit_handler) == SIG_ERR)
@@ -121,13 +121,12 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	check_if_positive_int(argv[1], &N);
 	*shared_n = N;
 	printf("Hive: Setting first SHM as N: %d\n", *shared_n);
 	calculate_P(N, &P);
 
 	printf("Hive: Create SHM for num of bees in Hive\n");
-	// TODO
+
         // Creating or open SHM FILE
         create_or_open_file(NUM_OF_BEES_IN_HIVE_FILE);
 
@@ -285,9 +284,12 @@ int main(int argc, char *argv[])
 			// Reading worker PID
 			number_of_bytes = read(fifo_a1, &worker_pid, sizeof(worker_pid));
 			if (number_of_bytes > 0)
+			{
 				// Successful worker PID letting through tunnel
 				queue_function_hive(sem_id, worker_pid, 'A', 1);
-		    	else if (number_of_bytes == 0)
+				*shared_num_of_bees_in_hive = *shared_num_of_bees_in_hive - 1;
+		    	}
+			else if (number_of_bytes == 0)
 			{
 				perror("Error: Queue A1 not empty, but no workers");
 				exit(EXIT_FAILURE);
@@ -306,9 +308,12 @@ int main(int argc, char *argv[])
 			// Reading worker PID
                         number_of_bytes = read(fifo_b1, &worker_pid, sizeof(worker_pid));
                         if (number_of_bytes > 0)
-                                // Successful worker PID letting through tunnel
+                       	{
+				// Successful worker PID letting through tunnel
                                 queue_function_hive(sem_id, worker_pid, 'B', 1);
-                        else if (number_of_bytes == 0)
+				*shared_num_of_bees_in_hive = *shared_num_of_bees_in_hive + 1;
+                        }
+			else if (number_of_bytes == 0)
 			{
 				perror("Error: Queue B1 not empty, but no workers");
 				exit(EXIT_FAILURE);
@@ -323,12 +328,15 @@ int main(int argc, char *argv[])
 
                 if (queue_a2_count > 0 && queue_2 == 0)
                 {
-                        // Reading worker PID
+			// Reading worker PID
                         number_of_bytes = read(fifo_a2, &worker_pid, sizeof(worker_pid));
                         if (number_of_bytes > 0)
-                                // Successful worker PID letting through tunnel
+                	{
+		               // Successful worker PID letting through tunnel
                                 queue_function_hive(sem_id, worker_pid, 'A', 2);
-                        else if (number_of_bytes == 0)
+				*shared_num_of_bees_in_hive = *shared_num_of_bees_in_hive - 1;
+                        }
+			else if (number_of_bytes == 0)
 			{
                                 perror("Hive: Queue A2 not empty, but no workers");
 				exit(EXIT_FAILURE);
@@ -347,9 +355,12 @@ int main(int argc, char *argv[])
                         // Reading worker PID
                         number_of_bytes = read(fifo_b2, &worker_pid, sizeof(worker_pid));
                         if (number_of_bytes > 0)
-                                // Successful client PID letting through tunnel
+                        {
+			        // Successful client PID letting through tunnel
                                 queue_function_hive(sem_id, worker_pid, 'B', 2);
-                        else if (number_of_bytes == 0)
+				*shared_num_of_bees_in_hive = *shared_num_of_bees_in_hive + 1;
+                        }
+			else if (number_of_bytes == 0)
 			{
                                 perror("Error: Queue B2 not empty, but no workers");
 				exit(EXIT_FAILURE);
@@ -405,7 +416,7 @@ key_t generate_key(pid_t pid) {
         	perror("Error: Ftok failed");
         	exit(EXIT_FAILURE);
     	}
-	
+
     	return key;
 }
 
@@ -462,7 +473,7 @@ void queue_function_hive(int semID, pid_t workerPID, char side, int tunnel)
 	}
 	// Opening worker SEM
 	semaphore_operation(worker_sem_id, 0, 1);
-	printf("Hive: Worker with ID: %d passing through a tunnel\n", worker_sem_id);
+	printf("Hive: Worker with ID: %d passing through a tunnel %c%d\n", worker_sem_id, side, tunnel);
 
 	if (tunnel == 1)
 	{
@@ -486,6 +497,7 @@ void queue_function_hive(int semID, pid_t workerPID, char side, int tunnel)
 		// Blocking SEM
 		semaphore_operation(semID, SEM_2, 1);
 	}
+
 }
 
 void check_if_positive_int(char *arg, int *a)

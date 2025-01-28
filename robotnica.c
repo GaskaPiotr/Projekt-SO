@@ -129,7 +129,6 @@ int main(int argc, char *argv[])
                 }
 	}
 
-	// TODO worker exit handler
 	exit_handler();
 	return 0;
 }

@@ -14,7 +14,7 @@
 // Project ID used in keys
 #define PROJ_ID 80
 
-// TODO UL deciding about N and P
+// SMH file to share N
 #define NUM_OF_BEES_FILE "/tmp/bees"
 
 // SHM file to share number of bees in hive
@@ -28,6 +28,8 @@ int N;
 int P;
 // Number of all workers
 int num_of_bees = 0;
+// Number of workers in hive
+int *shared_num_of_bees;
 
 
 void clean_workers(int sig);
@@ -36,7 +38,7 @@ void calculate_P(int n, int *p);
 key_t generate_key(const char *file_name);
 void exit_handler(int sig)
 {
-	printf("\nQueen: Received SIGINT\n");
+	printf("\nQueen: Received USR1\n");
 	printf("Queen: Waiting for all workers to die naturally\n");
 	printf("Queen: num_of_bees: %d\n", num_of_bees);
 	while(num_of_bees > 0)
@@ -56,6 +58,7 @@ int main(int argc, char *argv[])
                 printf("./program Tk(number_of_sec_to_lay_eggs)\n");
                 exit(EXIT_FAILURE);
         }
+	check_if_positive_int(argv[1], &TK);
 
 	// Setting up exit handler
 	if (signal(SIGUSR1, exit_handler) == SIG_ERR)
@@ -111,15 +114,12 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
         // Shared num of bees
-        int *shared_num_of_bees = (int *)shmat(shm_id_num_of_bees, NULL, 0);
+        shared_num_of_bees = (int *)shmat(shm_id_num_of_bees, NULL, 0);
         if (shared_num_of_bees == (int *)-1)
         {
                 perror("Error: Shmat failed");
                 exit(EXIT_FAILURE);
         }
-
-
-	check_if_positive_int(argv[1], &TK);
 
 	printf("Queen: Started producing workers\\nn");
 
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 	                // worker_arg2: Xi - Number of visits the Hive to die
 			lay_egg(worker_program, "5", "2");
 			// Increase number of bees in hive
-			*shared_num_of_bees++;
+			*shared_num_of_bees = *shared_num_of_bees + 1;
 			// Increase number of bees
 			num_of_bees++;
 		}
@@ -155,6 +155,7 @@ void clean_workers(int sig)
         while(waitpid(-1, NULL, WNOHANG) > 0)
 	{
 		num_of_bees--;
+		*shared_num_of_bees = *shared_num_of_bees - 1;
 	}
 }
 
